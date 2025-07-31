@@ -9,7 +9,39 @@ to reduce file size and improve startup performance.
 import json
 import os
 import sys
+import platform
 from datetime import datetime
+
+def find_claude_config():
+    """Find Claude Code config file across different platforms"""
+    possible_paths = []
+    
+    if platform.system() == "Windows":
+        # Windows paths
+        userprofile = os.environ.get('USERPROFILE', '')
+        appdata = os.environ.get('APPDATA', '')
+        localappdata = os.environ.get('LOCALAPPDATA', '')
+        
+        possible_paths = [
+            os.path.join(userprofile, '.claude.json'),
+            os.path.join(appdata, 'claude', 'claude.json'),
+            os.path.join(localappdata, 'claude', 'claude.json'),
+        ]
+    else:
+        # Unix/macOS paths
+        home = os.path.expanduser('~')
+        possible_paths = [
+            os.path.join(home, '.claude.json'),
+            os.path.join(home, '.config', 'claude', 'claude.json'),
+        ]
+    
+    # Find the first existing file
+    for path in possible_paths:
+        if os.path.exists(path):
+            return path
+    
+    # If no file found, return the most likely default
+    return possible_paths[0] if possible_paths else None
 
 def is_base64_image(s):
     """Check if a string is likely a base64 encoded image"""
@@ -52,12 +84,26 @@ def clean_object(obj, stats):
         return obj
 
 def main():
-    claude_json_path = os.path.expanduser('~/.claude.json')
+    claude_json_path = find_claude_config()
     
     # Check if file exists
-    if not os.path.exists(claude_json_path):
-        print(f"Error: {claude_json_path} not found")
+    if not claude_json_path or not os.path.exists(claude_json_path):
+        print(f"Error: Claude config file not found")
+        print("Searched in:")
+        if platform.system() == "Windows":
+            userprofile = os.environ.get('USERPROFILE', '')
+            appdata = os.environ.get('APPDATA', '')
+            localappdata = os.environ.get('LOCALAPPDATA', '')
+            print(f"  - {os.path.join(userprofile, '.claude.json')}")
+            print(f"  - {os.path.join(appdata, 'claude', 'claude.json')}")
+            print(f"  - {os.path.join(localappdata, 'claude', 'claude.json')}")
+        else:
+            home = os.path.expanduser('~')
+            print(f"  - {os.path.join(home, '.claude.json')}")
+            print(f"  - {os.path.join(home, '.config', 'claude', 'claude.json')}")
         sys.exit(1)
+    
+    print(f"Found Claude config: {claude_json_path}")
     
     # Get original file size
     original_size = os.path.getsize(claude_json_path)

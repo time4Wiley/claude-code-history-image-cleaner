@@ -26,6 +26,7 @@ This script identifies and removes base64 encoded images from the history while 
 
 ### Quick Start
 
+**macOS/Linux:**
 ```bash
 # Download the script
 curl -O https://raw.githubusercontent.com/time4Wiley/claude-code-history-image-cleaner/master/claude-code-history-image-cleaner.py
@@ -37,11 +38,30 @@ chmod +x claude-code-history-image-cleaner.py
 python3 claude-code-history-image-cleaner.py
 ```
 
+**Windows (PowerShell):**
+```powershell
+# Download the script
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/time4Wiley/claude-code-history-image-cleaner/master/claude-code-history-image-cleaner.py" -OutFile "claude-code-history-image-cleaner.py"
+
+# Run it
+python claude-code-history-image-cleaner.py
+```
+
+**Windows (Command Prompt):**
+```cmd
+# Download the script
+curl -O https://raw.githubusercontent.com/time4Wiley/claude-code-history-image-cleaner/master/claude-code-history-image-cleaner.py
+
+# Run it
+python claude-code-history-image-cleaner.py
+```
+
 ### Example Output
 
 ```
+Found Claude config: C:\Users\YourName\.claude.json
 Original file size: 24.9 MB
-Backup saved to: /Users/you/.claude.json.backup.20250731_120432
+Backup saved to: C:\Users\YourName\.claude.json.backup.20250731_120432
 
 Items cleaned: 56
 Total size removed: 23.5 MB
@@ -52,7 +72,9 @@ Size reduction: 94.8%
 
 ## How It Works
 
-1. **Loads** `~/.claude.json`
+1. **Finds** Claude Code config file automatically:
+   - **Windows**: `%USERPROFILE%\.claude.json`, `%APPDATA%\claude\claude.json`, or `%LOCALAPPDATA%\claude\claude.json`
+   - **macOS/Linux**: `~/.claude.json` or `~/.config/claude/claude.json`
 2. **Creates** a timestamped backup
 3. **Scans** all project history for `pastedContents`
 4. **Identifies** base64 encoded images using:
@@ -65,6 +87,7 @@ Size reduction: 94.8%
 
 - Python 3.6+
 - Claude Code installed
+- Works on Windows, macOS, and Linux
 - No additional dependencies required
 
 ## Safety
@@ -77,19 +100,38 @@ Size reduction: 94.8%
 
 Run this script when:
 - Claude Code startup feels slow
-- `~/.claude.json` is larger than 5MB
+- Your Claude config file is larger than 5MB
 - You've pasted many images/screenshots in Claude conversations
 
 ## Restoring from Backup
 
 If needed, restore your original history:
 
+**macOS/Linux:**
 ```bash
 # List backups
 ls -la ~/.claude.json.backup.*
 
 # Restore a specific backup
 cp ~/.claude.json.backup.20250731_120432 ~/.claude.json
+```
+
+**Windows (PowerShell):**
+```powershell
+# List backups
+Get-ChildItem $env:USERPROFILE\.claude.json.backup.*
+
+# Restore a specific backup
+Copy-Item "$env:USERPROFILE\.claude.json.backup.20250731_120432" "$env:USERPROFILE\.claude.json"
+```
+
+**Windows (Command Prompt):**
+```cmd
+# List backups
+dir %USERPROFILE%\.claude.json.backup.*
+
+# Restore a specific backup
+copy "%USERPROFILE%\.claude.json.backup.20250731_120432" "%USERPROFILE%\.claude.json"
 ```
 
 ## Performance Impact
