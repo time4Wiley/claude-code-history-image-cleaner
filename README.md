@@ -136,10 +136,13 @@ copy "%USERPROFILE%\.claude.json.backup.20250731_120432" "%USERPROFILE%\.claude.
 
 ## Performance Impact
 
-In testing, this reduced:
-- File size: 24.9 MB → 1.3 MB (95% reduction)
-- Improved CLI responsiveness
-- Reduced memory usage
+**Real-world test results (2021 M1 Pro MacBook Pro):**
+- **File size**: 24.9 MB → 1.3 MB (95% reduction)
+- **Claude Code startup time**: 6 seconds → 2-3 seconds (50%+ faster)
+- **CLI responsiveness**: Significantly improved
+- **Memory usage**: Substantially reduced
+
+The performance improvement is immediately noticeable, especially on systems with large history files containing many pasted images.
 
 ## Contributing
 
