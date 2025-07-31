@@ -28,13 +28,13 @@ This script identifies and removes base64 encoded images from the history while 
 
 ```bash
 # Download the script
-curl -O https://raw.githubusercontent.com/YOUR_USERNAME/claude-code-history-image-cleaner/main/clean-claude-history.py
+curl -O https://raw.githubusercontent.com/time4Wiley/claude-code-history-image-cleaner/master/claude-code-history-image-cleaner.py
 
 # Make it executable
-chmod +x clean-claude-history.py
+chmod +x claude-code-history-image-cleaner.py
 
 # Run it
-python3 clean-claude-history.py
+python3 claude-code-history-image-cleaner.py
 ```
 
 ### Example Output
