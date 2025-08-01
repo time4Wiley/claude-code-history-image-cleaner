@@ -1,5 +1,6 @@
 # Claude Code History Image Cleaner
 
+[![PyPI version](https://badge.fury.io/py/claude-code-history-image-cleaner.svg)](https://badge.fury.io/py/claude-code-history-image-cleaner)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.6+](https://img.shields.io/badge/python-3.6+-blue.svg)](https://www.python.org/downloads/)
 [![Cross Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)](https://github.com/time4Wiley/claude-code-history-image-cleaner)
@@ -14,7 +15,7 @@ curl -O https://raw.githubusercontent.com/time4Wiley/claude-code-history-image-c
 chmod +x install.sh && ./install.sh
 
 # Use from anywhere
-claude-image-cleaner                    # Clean and extract images
+claude-image-cleaner                         # Clean and extract images
 claude-image-cleaner --recover-from-backup  # Recover lost images from backup
 ```
 
@@ -72,6 +73,21 @@ chmod +x install.sh
 
 # Now use from anywhere
 claude-image-cleaner
+```
+
+### Alternative: PyPI Installation
+
+For users who prefer pip package management:
+
+```bash
+# Install from PyPI
+pip install claude-code-history-image-cleaner
+
+# Or with uv (modern Python package manager)
+uv add claude-code-history-image-cleaner
+
+# Use the same way
+claude-image-cleaner --help
 ```
 
 ### Manual Installation

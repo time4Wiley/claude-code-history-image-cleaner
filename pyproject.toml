@@ -1,0 +1,66 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "claude-code-history-image-cleaner"
+version = "1.0.0"
+authors = [
+    {name = "time4Wiley", email = "time4wiley@users.noreply.github.com"}
+]
+description = "Extract and preserve base64 encoded images from Claude Code's history file, dramatically reducing file size while preserving all images for future reference."
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.6"
+keywords = [
+    "claude",
+    "cli", 
+    "image",
+    "optimization",
+    "base64",
+    "history",
+    "performance",
+    "cleanup"
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.6",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: System :: Archiving :: Backup",
+    "Topic :: Utilities",
+    "Typing :: Typed"
+]
+
+[project.urls]
+Homepage = "https://github.com/time4Wiley/claude-code-history-image-cleaner"
+Repository = "https://github.com/time4Wiley/claude-code-history-image-cleaner"
+Issues = "https://github.com/time4Wiley/claude-code-history-image-cleaner/issues"
+Documentation = "https://github.com/time4Wiley/claude-code-history-image-cleaner#readme"
+Changelog = "https://github.com/time4Wiley/claude-code-history-image-cleaner/releases"
+
+[project.scripts]
+claude-image-cleaner = "claude_code_history_image_cleaner.main:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/claude_code_history_image_cleaner"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/src",
+    "/README.md",
+    "/LICENSE",
+    "/CLAUDE.md"
+]
