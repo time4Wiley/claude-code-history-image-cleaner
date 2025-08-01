@@ -16,6 +16,8 @@ import base64
 import hashlib
 import re
 from datetime import datetime
+import copy
+import tempfile
 
 def find_claude_config():
     """Find Claude Code config file across different platforms"""
@@ -48,13 +50,8 @@ def find_claude_config():
     # If no file found, return the most likely default
     return possible_paths[0] if possible_paths else None
 
-def get_images_directory(use_temp=False):
+def get_images_directory():
     """Get the cross-platform images directory path"""
-    if use_temp:
-        # Use ~/temp for testing
-        home = os.path.expanduser('~')
-        return os.path.join(home, 'temp', 'claude_history_images')
-    
     if platform.system() == "Windows":
         userprofile = os.environ.get('USERPROFILE', '')
         return os.path.join(userprofile, '.claude', 'history_images')
@@ -300,8 +297,43 @@ def clean_object(obj, stats, project_dir=None, preserve_images=True):
     else:
         return obj
 
-def main():
-    claude_json_path = find_claude_config()
+
+
+def parse_arguments():
+    """Parse command line arguments"""
+    import argparse
+    
+    parser = argparse.ArgumentParser(
+        description="Extract and preserve base64 encoded images from Claude Code history",
+        epilog="Examples:\n"
+               "  %(prog)s                           # Clean current Claude config\n"
+               "  %(prog)s --recover-from-backup     # Recover images from backup and merge changes\n"
+               "  %(prog)s --list-backups           # List available backup files\n",
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    
+    parser.add_argument('--recover-from-backup', 
+                       metavar='BACKUP_FILE',
+                       nargs='?',
+                       const='auto',
+                       help='Recover images from backup file and merge with current changes (auto-detects if no file specified)')
+    parser.add_argument('--list-backups', 
+                       action='store_true',
+                       help='List available backup files')
+    parser.add_argument('--config-file',
+                       metavar='FILE',
+                       help='Use specific Claude config file instead of auto-detection')
+    parser.add_argument('--verbose', '-v',
+                       action='store_true',
+                       help='Enable verbose output')
+    
+    return parser.parse_args()
+
+def clean_claude_config(claude_json_path=None, verbose=False):
+    """Main image cleaning function"""
+    # Find Claude config if not specified
+    if not claude_json_path:
+        claude_json_path = find_claude_config()
     
     # Check if file exists
     if not claude_json_path or not os.path.exists(claude_json_path):
@@ -382,164 +414,170 @@ def main():
         os.remove(backup_path)
         print("Backup removed (no changes made)")
 
-def generate_fake_base64_image(width=100, height=100, format='png'):
-    """Generate a small fake base64 image for testing"""
-    # Create a minimal PNG header + data (this creates a tiny valid PNG)
-    if format.lower() == 'png':
-        # Minimal PNG: signature + IHDR + IDAT + IEND
-        png_data = (
-            b'\x89PNG\r\n\x1a\n'  # PNG signature
-            b'\x00\x00\x00\rIHDR'  # IHDR chunk
-            b'\x00\x00\x00d\x00\x00\x00d\x08\x02\x00\x00\x00'  # 100x100, RGB
-            b'\xff\xcc\xde\x8f'  # CRC
-            b'\x00\x00\x00\x0cIDAT'  # IDAT chunk
-            b'x\x9cc\xf8\x0f\x00\x00\x01\x00\x01'  # Compressed data
-            b'\n\x9d\x8e\x99'  # CRC
-            b'\x00\x00\x00\x00IEND'  # IEND chunk
-            b'\xaeB`\x82'  # CRC
-        )
-        mime_type = 'image/png'
-    else:
-        # For other formats, just use PNG data but with different MIME type
-        png_data = (
-            b'\x89PNG\r\n\x1a\n'
-            b'\x00\x00\x00\rIHDR'
-            b'\x00\x00\x00d\x00\x00\x00d\x08\x02\x00\x00\x00'
-            b'\xff\xcc\xde\x8f'
-            b'\x00\x00\x00\x0cIDAT'
-            b'x\x9cc\xf8\x0f\x00\x00\x01\x00\x01'
-            b'\n\x9d\x8e\x99'
-            b'\x00\x00\x00\x00IEND'
-            b'\xaeB`\x82'
-        )
-        mime_type = f'image/{format.lower()}'
-    
-    # Encode to base64
-    b64_data = base64.b64encode(png_data).decode('ascii')
-    return f'data:{mime_type};base64,{b64_data}'
-
-def generate_test_claude_config(output_path, num_projects=3, images_per_project=2):
-    """Generate a test Claude config file with fake base64 images"""
-    test_data = {
-        "projects": {}
-    }
-    
-    # Generate fake projects
-    for i in range(num_projects):
-        project_path = f"/fake/project/path{i+1}"
-        test_data["projects"][project_path] = {
-            "history": []
-        }
-        
-        # Generate history items with images
-        for j in range(images_per_project):
-            fake_image = generate_fake_base64_image(format=['png', 'jpeg', 'gif'][j % 3])
-            
-            history_item = {
-                "timestamp": "2025-07-31T12:00:00Z",
-                "pastedContents": [
-                    {
-                        "type": "image", 
-                        "data": fake_image
-                    },
-                    {
-                        "type": "text",
-                        "content": f"Test image {j+1} in project {i+1}"
-                    }
-                ]
-            }
-            test_data["projects"][project_path]["history"].append(history_item)
-    
-    # Write test file
-    with open(output_path, 'w') as f:
-        json.dump(test_data, f, indent=2)
-    
-    print(f"Test config generated: {output_path}")
-    print(f"- {num_projects} projects")
-    print(f"- {num_projects * images_per_project} total images")
-    return output_path
-
-def main():
-    # Parse command line arguments
-    use_temp_dir = False
-    claude_json_path = None
-    
-    # Check for test data generation flag
-    if len(sys.argv) > 1 and sys.argv[1] == '--generate-test-data':
-        output_path = sys.argv[2] if len(sys.argv) > 2 else 'test_claude_config.json'
-        generate_test_claude_config(output_path)
-        return
-    
-    # Check for test file flag
-    if len(sys.argv) > 2 and sys.argv[1] == '--test-file':
-        claude_json_path = sys.argv[2]
-        if not os.path.exists(claude_json_path):
-            print(f"Error: Test file not found: {claude_json_path}")
-            sys.exit(1)
-        # Enable temp directory for testing
-        use_temp_dir = True
-    
-    # Check for test directory flag
-    if '--use-temp' in sys.argv:
-        use_temp_dir = True
-        sys.argv.remove('--use-temp')
-    
-    # If no specific file provided, find the config
+def list_backups(claude_json_path=None):
+    """List available backup files"""
     if not claude_json_path:
         claude_json_path = find_claude_config()
     
-    # Check if file exists
-    if not claude_json_path or not os.path.exists(claude_json_path):
-        print(f"Error: Claude config file not found")
-        print("Searched in:")
-        if platform.system() == "Windows":
-            userprofile = os.environ.get('USERPROFILE', '')
-            appdata = os.environ.get('APPDATA', '')
-            localappdata = os.environ.get('LOCALAPPDATA', '')
-            print(f"  - {os.path.join(userprofile, '.claude.json')}")
-            print(f"  - {os.path.join(appdata, 'claude', 'claude.json')}")
-            print(f"  - {os.path.join(localappdata, 'claude', 'claude.json')}")
-        else:
-            home = os.path.expanduser('~')
-            print(f"  - {os.path.join(home, '.claude.json')}")
-            print(f"  - {os.path.join(home, '.config', 'claude', 'claude.json')}")
-        print("\nTo generate test data, run:")
-        print("  python3 claude-code-history-image-cleaner.py --generate-test-data [output_file.json]")
-        sys.exit(1)
+    if not claude_json_path:
+        print("Error: Could not find Claude config file")
+        return
     
-    print(f"Found Claude config: {claude_json_path}")
+    backup_dir = os.path.dirname(claude_json_path)
+    backup_pattern = os.path.basename(claude_json_path) + ".backup.*"
     
-    # Set up images directory
-    images_base_dir = get_images_directory(use_temp=use_temp_dir)
-    if use_temp_dir:
-        print(f"🧪 Testing mode - Images will be saved to: {images_base_dir}")
+    # Find backup files
+    backup_files = []
+    for file in os.listdir(backup_dir):
+        if file.startswith(os.path.basename(claude_json_path) + ".backup."):
+            backup_path = os.path.join(backup_dir, file)
+            file_size = os.path.getsize(backup_path)
+            backup_files.append((file, backup_path, file_size))
+    
+    if not backup_files:
+        print("No backup files found")
+        return
+    
+    print(f"Available backup files:")
+    backup_files.sort(key=lambda x: x[0])  # Sort by filename (timestamp)
+    for filename, full_path, size in backup_files:
+        print(f"  {filename} ({size / 1024 / 1024:.1f} MB)")
+
+def clean_object_destructive(obj, stats):
+    """Recursively clean base64 images from an object (destructive - no image preservation)"""
+    if isinstance(obj, dict):
+        cleaned = {}
+        for k, v in obj.items():
+            if is_base64_image(v):
+                stats['total_removed_size'] += len(v)
+                stats['items_cleaned'] += 1
+                cleaned[k] = '[IMAGE_REMOVED]'
+            else:
+                cleaned[k] = clean_object_destructive(v, stats)
+        return cleaned
+    elif isinstance(obj, list):
+        return [clean_object_destructive(item, stats) for item in obj]
+    elif isinstance(obj, str) and is_base64_image(obj):
+        stats['total_removed_size'] += len(obj)
+        stats['items_cleaned'] += 1
+        return '[IMAGE_REMOVED]'
     else:
-        print(f"Images will be saved to: {images_base_dir}")
+        return obj
+
+def create_destructive_version(backup_data):
+    """Create a destructively cleaned version of backup data (like old cleaner would have done)"""
+    print("🔄 Creating destructive version of backup data...")
+    cleaned_data = copy.deepcopy(backup_data)
+    stats = {'total_removed_size': 0, 'items_cleaned': 0}
     
-    # Get original file size
-    original_size = os.path.getsize(claude_json_path)
-    print(f"Original file size: {original_size / 1024 / 1024:.1f} MB")
-    
-    # Create backup
-    backup_path = f"{claude_json_path}.backup.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-    with open(claude_json_path, 'r') as f:
-        data = json.load(f)
-    
-    with open(backup_path, 'w') as f:
-        json.dump(data, f)
-    print(f"Backup saved to: {backup_path}")
-    
-    # Clean the data
-    cleaned_data = data.copy()
-    stats = {'total_removed_size': 0, 'items_cleaned': 0, 'images_extracted': 0}
-    
-    # Clean all projects
+    # Clean all projects destructively
     for proj_path in cleaned_data.get('projects', {}):
         if 'history' in cleaned_data['projects'][proj_path]:
+            for hist_item in cleaned_data['projects'][proj_path]['history']:
+                if 'pastedContents' in hist_item:
+                    hist_item['pastedContents'] = clean_object_destructive(
+                        hist_item['pastedContents'], 
+                        stats
+                    )
+    
+    print(f"   Destructively removed {stats['items_cleaned']} images")
+    return cleaned_data
+
+def find_differences(current_data, destructive_backup_data):
+    """Find differences between current data and destructively cleaned backup"""
+    print("🔍 Analyzing differences between current and backup data...")
+    
+    differences = {
+        'new_projects': [],
+        'modified_projects': {},
+        'new_history_items': {}
+    }
+    
+    current_projects = current_data.get('projects', {})
+    backup_projects = destructive_backup_data.get('projects', {})
+    
+    # Find new projects
+    for proj_path in current_projects:
+        if proj_path not in backup_projects:
+            differences['new_projects'].append(proj_path)
+            print(f"   Found new project: {proj_path}")
+    
+    # Find modified projects (new history items)
+    for proj_path in current_projects:
+        if proj_path in backup_projects:
+            current_history = current_projects[proj_path].get('history', [])
+            backup_history = backup_projects[proj_path].get('history', [])
+            
+            if len(current_history) > len(backup_history):
+                new_items = current_history[len(backup_history):]
+                differences['new_history_items'][proj_path] = new_items
+                print(f"   Found {len(new_items)} new history items in {proj_path}")
+    
+    return differences
+
+def merge_data_with_images(backup_data_with_images, current_data, differences):
+    """Merge backup data (with extracted images) with current changes"""
+    print("🔀 Merging backup images with current changes...")
+    
+    # Start with the backup data that has images extracted
+    merged_data = copy.deepcopy(backup_data_with_images)
+    
+    # Add new projects
+    for proj_path in differences['new_projects']:
+        merged_data['projects'][proj_path] = current_data['projects'][proj_path]
+        print(f"   Added new project: {proj_path}")
+    
+    # Add new history items to existing projects
+    for proj_path, new_items in differences['new_history_items'].items():
+        if proj_path in merged_data['projects']:
+            merged_data['projects'][proj_path]['history'].extend(new_items)
+            print(f"   Added {len(new_items)} new history items to {proj_path}")
+    
+    return merged_data
+
+def recover_from_backup(backup_file_path, claude_json_path=None, verbose=False):
+    """Recover images from backup and merge with current changes"""
+    if not claude_json_path:
+        claude_json_path = find_claude_config()
+    
+    if not os.path.exists(backup_file_path):
+        print(f"Error: Backup file not found: {backup_file_path}")
+        return False
+    
+    if not os.path.exists(claude_json_path):
+        print(f"Error: Current Claude config not found: {claude_json_path}")
+        return False
+    
+    print(f"🚀 Starting data recovery process...")
+    print(f"   Backup file: {backup_file_path} ({os.path.getsize(backup_file_path) / 1024 / 1024:.1f} MB)")
+    print(f"   Current file: {claude_json_path} ({os.path.getsize(claude_json_path) / 1024 / 1024:.1f} MB)")
+    
+    # Load the data
+    print("📖 Loading data files...")
+    with open(backup_file_path, 'r') as f:
+        backup_data = json.load(f)
+    
+    with open(claude_json_path, 'r') as f:
+        current_data = json.load(f)
+    
+    # Step 1: Create destructive version of backup to compare
+    destructive_backup = create_destructive_version(backup_data)
+    
+    # Step 2: Find differences between current and destructive backup
+    differences = find_differences(current_data, destructive_backup)
+    
+    # Step 3: Process backup with image preservation
+    print("🖼️ Processing backup with image preservation...")
+    images_base_dir = get_images_directory()
+    backup_with_images = copy.deepcopy(backup_data)
+    stats = {'total_removed_size': 0, 'items_cleaned': 0, 'images_extracted': 0}
+    
+    for proj_path in backup_with_images.get('projects', {}):
+        if 'history' in backup_with_images['projects'][proj_path]:
             # Create project directory for images
             project_dir = create_project_directory(images_base_dir, proj_path)
             
-            for hist_item in cleaned_data['projects'][proj_path]['history']:
+            for hist_item in backup_with_images['projects'][proj_path]['history']:
                 if 'pastedContents' in hist_item:
                     hist_item['pastedContents'] = clean_object(
                         hist_item['pastedContents'], 
@@ -548,29 +586,78 @@ def main():
                         preserve_images=True
                     )
     
-    print(f"\nItems cleaned: {stats['items_cleaned']}")
-    print(f"Images extracted: {stats['images_extracted']}")
-    print(f"Total size removed: {stats['total_removed_size'] / 1024 / 1024:.1f} MB")
+    print(f"   Extracted {stats['images_extracted']} images from backup")
     
-    # Save the cleaned data
-    if stats['items_cleaned'] > 0:
-        with open(claude_json_path, 'w') as f:
-            json.dump(cleaned_data, f)
-        print("Cleaned .claude.json saved!")
+    # Step 4: Merge backup with images + current changes
+    merged_data = merge_data_with_images(backup_with_images, current_data, differences)
+    
+    # Step 5: Create backup of current file before replacing
+    recovery_backup_path = f"{claude_json_path}.recovery-backup.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    with open(recovery_backup_path, 'w') as f:
+        json.dump(current_data, f)
+    print(f"💾 Current file backed up to: {recovery_backup_path}")
+    
+    # Step 6: Save merged data
+    with open(claude_json_path, 'w') as f:
+        json.dump(merged_data, f)
+    
+    # Report results
+    new_size = os.path.getsize(claude_json_path)
+    print(f"\n✅ Data recovery completed successfully!")
+    print(f"   Images recovered: {stats['images_extracted']}")
+    print(f"   New projects added: {len(differences['new_projects'])}")
+    print(f"   Projects with new history: {len(differences['new_history_items'])}")
+    print(f"   Final file size: {new_size / 1024 / 1024:.1f} MB")
+    print(f"   Images location: {images_base_dir}")
+    print(f"   Recovery backup: {recovery_backup_path}")
+    
+    return True
+
+def main():
+    """Main entry point"""
+    args = parse_arguments()
+    
+    if args.list_backups:
+        list_backups(args.config_file)
+        return
+    
+    if args.recover_from_backup is not None:
+        # Find the backup file if not specified or set to 'auto'  
+        backup_file = args.recover_from_backup
+        if not backup_file or backup_file == 'auto':
+            # Try to find the latest large backup file
+            claude_json_path = find_claude_config()
+            if claude_json_path:
+                backup_dir = os.path.dirname(claude_json_path)
+                backup_files = []
+                for file in os.listdir(backup_dir):
+                    if file.startswith(os.path.basename(claude_json_path) + ".backup."):
+                        backup_path = os.path.join(backup_dir, file)
+                        file_size = os.path.getsize(backup_path)
+                        # Look for large backup files (likely containing images)
+                        if file_size > 5 * 1024 * 1024:  # > 5MB
+                            backup_files.append((file, backup_path, file_size))
+                
+                if backup_files:
+                    # Use the largest backup file
+                    backup_files.sort(key=lambda x: x[2], reverse=True)
+                    backup_file = backup_files[0][1]
+                    print(f"🔍 Auto-detected backup file: {backup_files[0][0]} ({backup_files[0][2] / 1024 / 1024:.1f} MB)")
+                else:
+                    print("Error: No suitable backup files found. Specify backup file manually.")
+                    print("Use --list-backups to see available files.")
+                    return
+            else:
+                print("Error: Could not find Claude config file")
+                return
         
-        if stats['images_extracted'] > 0:
-            print(f"✅ {stats['images_extracted']} images preserved and extracted to files")
-            print(f"📁 Images location: {images_base_dir}")
-        
-        # Check new file size
-        new_size = os.path.getsize(claude_json_path)
-        print(f"New file size: {new_size / 1024 / 1024:.1f} MB")
-        print(f"Size reduction: {(1 - new_size/original_size) * 100:.1f}%")
-    else:
-        print("No images found to clean.")
-        # Remove unnecessary backup
-        os.remove(backup_path)
-        print("Backup removed (no changes made)")
+        success = recover_from_backup(backup_file, args.config_file, args.verbose)
+        if not success:
+            sys.exit(1)
+        return
+    
+    # Default operation: clean Claude config
+    clean_claude_config(args.config_file, args.verbose)
 
 if __name__ == "__main__":
     main()
