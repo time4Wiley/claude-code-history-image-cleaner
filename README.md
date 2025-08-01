@@ -1,6 +1,36 @@
 # Claude Code History Image Cleaner
 
-A Python script to extract and preserve base64 encoded images from Claude Code's history file (`~/.claude.json`), significantly reducing file size while preserving all images for future reference.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.6+](https://img.shields.io/badge/python-3.6+-blue.svg)](https://www.python.org/downloads/)
+[![Cross Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)](https://github.com/time4Wiley/claude-code-history-image-cleaner)
+
+A sophisticated Python tool to extract and preserve base64 encoded images from Claude Code's history file (`~/.claude.json`), dramatically reducing file size while preserving all images for future reference. Features advanced data recovery capabilities to restore lost images from backups.
+
+## 🚀 Quick Start
+
+```bash
+# Install globally (recommended)
+curl -O https://raw.githubusercontent.com/time4Wiley/claude-code-history-image-cleaner/master/install.sh
+chmod +x install.sh && ./install.sh
+
+# Use from anywhere
+claude-image-cleaner                    # Clean and extract images
+claude-image-cleaner --recover-from-backup  # Recover lost images from backup
+```
+
+## 📋 Table of Contents
+
+- [Problem](#problem)
+- [Solution](#solution)
+- [Features](#features)
+- [Installation](#installation)
+- [Usage](#usage)
+- [Data Recovery System](#data-recovery-system)
+- [How It Works](#how-it-works)
+- [Performance Impact](#performance-impact)
+- [Architecture](#architecture)
+- [Troubleshooting](#troubleshooting)
+- [Contributing](#contributing)
 
 ## Problem
 
@@ -28,7 +58,7 @@ This script identifies base64 encoded images in the history, extracts them as in
 - ⚡ **Significant Reduction**: Typically reduces file size by 90%+ while keeping all images accessible
 - 🌐 **Cross-Platform**: Works seamlessly on Windows, macOS, and Linux
 
-## Usage
+## Installation
 
 ### Quick Installation (Recommended)
 
@@ -42,24 +72,6 @@ chmod +x install.sh
 
 # Now use from anywhere
 claude-image-cleaner
-```
-
-**Basic Commands:**
-```bash
-# Clean current Claude config and extract images
-claude-image-cleaner
-
-# List available backup files
-claude-image-cleaner --list-backups
-
-# Recover images from backup and merge with current changes
-claude-image-cleaner --recover-from-backup
-
-# Use specific backup file
-claude-image-cleaner --recover-from-backup ~/.claude.json.backup.2025-07-31
-
-# Show all options
-claude-image-cleaner --help
 ```
 
 ### Manual Installation
@@ -83,6 +95,27 @@ Invoke-WebRequest -Uri "https://raw.githubusercontent.com/time4Wiley/claude-code
 
 # Run it
 python claude-code-history-image-cleaner.py
+```
+
+## Usage
+
+### Basic Commands
+
+```bash
+# Clean current Claude config and extract images
+claude-image-cleaner
+
+# List available backup files
+claude-image-cleaner --list-backups
+
+# Recover images from backup and merge with current changes
+claude-image-cleaner --recover-from-backup
+
+# Use specific backup file
+claude-image-cleaner --recover-from-backup ~/.claude.json.backup.2025-07-31
+
+# Show all options
+claude-image-cleaner --help
 ```
 
 ### Example Output
@@ -286,6 +319,100 @@ rm /usr/local/bin/claude-image-cleaner  # or ~/.local/bin/claude-image-cleaner
 ```
 
 The installer automatically detects the best installation location and provides helpful guidance for PATH configuration if needed.
+
+## Architecture
+
+The tool is built with a modular architecture focused on safety and extensibility:
+
+### Core Components
+
+- **Image Detection Engine**: Multi-layer detection using data URI parsing and magic number analysis
+- **Format Identification**: Binary header analysis for PNG, JPEG, GIF, WebP, BMP, SVG formats
+- **Delta Comparison System**: Sophisticated diffing to identify changes between backup and current state
+- **Smart Merging Engine**: Combines recovered images with current conversations while preserving data integrity
+- **Project Organization**: Hash-based directory naming for consistent, collision-free storage
+
+### Technical Highlights
+
+- **Magic Number Detection**: Identifies raw base64 images by analyzing binary headers
+- **Cross-Platform Path Handling**: Automatic Windows/macOS/Linux config file detection
+- **Atomic Operations**: All modifications are backed up before execution
+- **Memory Efficient**: Processes large files without loading entire dataset into memory
+- **Error Recovery**: Comprehensive backup and rollback capabilities
+
+### Data Flow
+
+1. **Discovery** → Locate Claude config files across platforms
+2. **Analysis** → Scan for base64 image data using multiple detection methods
+3. **Extraction** → Convert base64 to binary and save with proper file extensions
+4. **Organization** → Store in project-specific directories with timestamps
+5. **Replacement** → Update JSON with file path references
+6. **Verification** → Confirm successful extraction and file integrity
+
+## Troubleshooting
+
+### Common Issues
+
+**"No backup files found"**
+```bash
+# Check if backup files exist
+ls -la ~/.claude.json.backup.*
+
+# Create manual backup if needed
+cp ~/.claude.json ~/.claude.json.backup.$(date +%Y%m%d_%H%M%S)
+```
+
+**"Command not found: claude-image-cleaner"**
+```bash
+# Check if PATH includes installation directory
+echo $PATH | grep -E "(usr/local/bin|\.local/bin)"
+
+# Add to PATH if missing (add to ~/.bashrc or ~/.zshrc)
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+**"Permission denied" during installation**
+```bash
+# Use manual installation instead
+python3 claude-code-history-image-cleaner.py
+```
+
+**Large file processing is slow**
+- This is normal for files >20MB with many images
+- Progress is shown for each extracted image
+- Consider running during off-peak hours
+
+### Recovery Scenarios
+
+**Lost original backup file**
+```bash
+# List all backup files with sizes
+claude-image-cleaner --list-backups
+
+# Use the largest backup (likely contains images)
+claude-image-cleaner --recover-from-backup /path/to/largest-backup
+```
+
+**Images not extracting**
+- Verify file contains base64 image data
+- Check disk space in `~/.claude/history_images/`
+- Run with `--verbose` flag for detailed logging
+
+**Merge conflicts during recovery**
+- Tool automatically preserves both backup images and current conversations
+- Creates recovery backup before any changes
+- Safe to run multiple times if needed
+
+### Performance Optimization
+
+**For very large files (>50MB)**
+- Close Claude Code before running
+- Ensure sufficient disk space (roughly same size as original file)
+- Consider running in background: `nohup claude-image-cleaner &`
+
+**For frequent use**
+- Set up periodic cleaning with `cron` (Linux/macOS) or Task Scheduler (Windows)
+- Monitor file size: `ls -lh ~/.claude.json`
 
 ## Contributing
 
