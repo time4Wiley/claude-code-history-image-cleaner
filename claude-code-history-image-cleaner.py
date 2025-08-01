@@ -48,8 +48,13 @@ def find_claude_config():
     # If no file found, return the most likely default
     return possible_paths[0] if possible_paths else None
 
-def get_images_directory():
+def get_images_directory(use_temp=False):
     """Get the cross-platform images directory path"""
+    if use_temp:
+        # Use ~/temp for testing
+        home = os.path.expanduser('~')
+        return os.path.join(home, 'temp', 'claude_history_images')
+    
     if platform.system() == "Windows":
         userprofile = os.environ.get('USERPROFILE', '')
         return os.path.join(userprofile, '.claude', 'history_images')
@@ -97,18 +102,47 @@ def get_file_extension(mime_type):
     }
     return extensions.get(mime_type, '.png')  # Default to .png
 
-def extract_image_to_file(data_uri, output_dir, image_counter):
-    """Extract base64 image from data URI and save to file"""
+def extract_image_to_file(data_string, output_dir, image_counter):
+    """Extract base64 image from data URI or raw base64 string and save to file"""
     try:
-        mime_type, base64_data = parse_data_uri(data_uri)
-        if not mime_type or not base64_data:
-            return None
+        mime_type = None
+        base64_data = None
+        
+        # Handle data URI format
+        if data_string.startswith('data:image/'):
+            mime_type, base64_data = parse_data_uri(data_string)
+            if not mime_type or not base64_data:
+                return None
+        else:
+            # Handle raw base64 string - detect format from binary data
+            base64_data = data_string.strip()
+            detected_format, file_ext = detect_image_format_from_base64(base64_data)
+            if detected_format:
+                mime_type = detected_format
+            else:
+                print(f"Warning: Could not detect image format from base64 data")
+                return None
         
         # Decode base64 data
-        image_data = base64.b64decode(base64_data)
+        # Remove any whitespace/newlines from base64 data
+        clean_b64 = ''.join(base64_data.split())
         
-        # Generate filename
-        file_extension = get_file_extension(mime_type)
+        # Add padding if necessary
+        missing_padding = len(clean_b64) % 4
+        if missing_padding:
+            clean_b64 += '=' * (4 - missing_padding)
+        
+        image_data = base64.b64decode(clean_b64)
+        
+        # Generate filename with proper extension
+        if data_string.startswith('data:image/'):
+            file_extension = get_file_extension(mime_type)
+        else:
+            # For raw base64, detect format again to get extension
+            detected_format, file_extension = detect_image_format_from_binary(image_data)
+            if not file_extension:
+                file_extension = '.png'  # Default fallback
+        
         filename = f"image_{image_counter:03d}{file_extension}"
         filepath = os.path.join(output_dir, filename)
         
@@ -116,6 +150,7 @@ def extract_image_to_file(data_uri, output_dir, image_counter):
         with open(filepath, 'wb') as f:
             f.write(image_data)
         
+        print(f"✓ Extracted {len(image_data)} bytes to {filename}")
         return filepath
         
     except Exception as e:
@@ -141,11 +176,82 @@ def is_base64_image(s):
     
     return False
 
+def detect_image_format_from_binary(binary_data):
+    """Detect image format from binary data using magic numbers"""
+    if len(binary_data) < 12:  # Need at least 12 bytes for WebP detection
+        return None, None
+    
+    # PNG: 89 50 4E 47 0D 0A 1A 0A
+    if binary_data.startswith(b'\x89PNG\r\n\x1a\n'):
+        return 'png', '.png'
+    
+    # JPEG: FF D8 FF
+    if binary_data.startswith(b'\xff\xd8\xff'):
+        return 'jpeg', '.jpg'
+    
+    # GIF: 47 49 46 38 (GIF8)
+    if binary_data.startswith(b'GIF8'):
+        return 'gif', '.gif'
+    
+    # WebP: 52 49 46 46 .... 57 45 42 50 (RIFF....WEBP)
+    if binary_data.startswith(b'RIFF') and b'WEBP' in binary_data[:12]:
+        return 'webp', '.webp'
+    
+    # BMP: 42 4D (BM)
+    if binary_data.startswith(b'BM'):
+        return 'bmp', '.bmp'
+    
+    # SVG (text-based, check for XML + svg)
+    try:
+        text_start = binary_data[:200].decode('utf-8', errors='ignore').lower()
+        if '<svg' in text_start and ('xml' in text_start or '<?xml' in text_start):
+            return 'svg+xml', '.svg'
+    except:
+        pass
+    
+    return None, None
+
+def detect_image_format_from_base64(base64_string):
+    """Detect image format from base64 string by decoding and checking headers"""
+    try:
+        # Remove whitespace and newlines
+        clean_b64 = ''.join(base64_string.split())
+        
+        # Decode first part to check magic numbers
+        # We only need the first ~50 bytes to detect format
+        partial_b64 = clean_b64[:100]  # ~75 bytes when decoded
+        
+        # Pad if necessary
+        missing_padding = len(partial_b64) % 4
+        if missing_padding:
+            partial_b64 += '=' * (4 - missing_padding)
+        
+        binary_data = base64.b64decode(partial_b64)
+        return detect_image_format_from_binary(binary_data)
+        
+    except Exception as e:
+        return None, None
+
 def is_extractable_image(s):
-    """Check if a string is a data URI that can be extracted"""
+    """Check if a string is a data URI or raw base64 that can be extracted as an image"""
     if not isinstance(s, str):
         return False
-    return s.startswith('data:image/')
+    
+    # Check for data URI scheme (this is definitely extractable)
+    if s.startswith('data:image/'):
+        return True
+    
+    # For large base64-like strings, try to detect image format
+    if len(s) > 50000:  # Images are typically very large
+        # Sample the string to check if it's base64-like
+        sample = s[:1000]
+        base64_chars = set('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=')
+        if all(c in base64_chars or c in '\n\r \t' for c in sample):
+            # Try to detect image format from the base64 data
+            format_type, _ = detect_image_format_from_base64(s)
+            return format_type is not None
+    
+    return False
 
 def clean_object(obj, stats, project_dir=None, preserve_images=True):
     """Recursively clean base64 images from an object"""
@@ -354,6 +460,10 @@ def generate_test_claude_config(output_path, num_projects=3, images_per_project=
     return output_path
 
 def main():
+    # Parse command line arguments
+    use_temp_dir = False
+    claude_json_path = None
+    
     # Check for test data generation flag
     if len(sys.argv) > 1 and sys.argv[1] == '--generate-test-data':
         output_path = sys.argv[2] if len(sys.argv) > 2 else 'test_claude_config.json'
@@ -366,7 +476,16 @@ def main():
         if not os.path.exists(claude_json_path):
             print(f"Error: Test file not found: {claude_json_path}")
             sys.exit(1)
-    else:
+        # Enable temp directory for testing
+        use_temp_dir = True
+    
+    # Check for test directory flag
+    if '--use-temp' in sys.argv:
+        use_temp_dir = True
+        sys.argv.remove('--use-temp')
+    
+    # If no specific file provided, find the config
+    if not claude_json_path:
         claude_json_path = find_claude_config()
     
     # Check if file exists
@@ -391,8 +510,11 @@ def main():
     print(f"Found Claude config: {claude_json_path}")
     
     # Set up images directory
-    images_base_dir = get_images_directory()
-    print(f"Images will be saved to: {images_base_dir}")
+    images_base_dir = get_images_directory(use_temp=use_temp_dir)
+    if use_temp_dir:
+        print(f"🧪 Testing mode - Images will be saved to: {images_base_dir}")
+    else:
+        print(f"Images will be saved to: {images_base_dir}")
     
     # Get original file size
     original_size = os.path.getsize(claude_json_path)
