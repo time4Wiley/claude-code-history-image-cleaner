@@ -16,9 +16,12 @@ This script identifies base64 encoded images in the history, extracts them as in
 
 ## Features
 
-- 🔍 **Smart Detection**: Identifies base64 images by data URI scheme (`data:image/`) and large base64 strings
+- 🔍 **Smart Detection**: Identifies base64 images by data URI scheme (`data:image/`) and raw base64 with magic number detection
 - 🖼️ **Image Preservation**: Extracts images as individual files organized by project instead of deleting them
+- 🔧 **Raw Base64 Recovery**: Detects and recovers pasted images on macOS using magic number identification (PNG, JPEG, GIF, WebP, BMP, SVG)
 - 📁 **Organized Storage**: Saves images to `~/.claude/history_images/` with project-based subdirectories
+- 🌍 **Global CLI Access**: Install once and use from anywhere with the `claude-image-cleaner` command
+- 🔄 **Data Recovery System**: Sophisticated backup processing to recover lost images and merge with current changes
 - 💾 **Automatic Backup**: Creates timestamped backups before making changes
 - 📊 **Detailed Reporting**: Shows exactly how much space was saved and images extracted
 - 🛡️ **Safe Operation**: Preserves all conversation data and design images
@@ -27,7 +30,39 @@ This script identifies base64 encoded images in the history, extracts them as in
 
 ## Usage
 
-### Quick Start
+### Quick Installation (Recommended)
+
+**macOS/Linux:**
+```bash
+# Download and install globally
+curl -O https://raw.githubusercontent.com/time4Wiley/claude-code-history-image-cleaner/master/claude-code-history-image-cleaner.py
+curl -O https://raw.githubusercontent.com/time4Wiley/claude-code-history-image-cleaner/master/install.sh
+chmod +x install.sh
+./install.sh
+
+# Now use from anywhere
+claude-image-cleaner
+```
+
+**Basic Commands:**
+```bash
+# Clean current Claude config and extract images
+claude-image-cleaner
+
+# List available backup files
+claude-image-cleaner --list-backups
+
+# Recover images from backup and merge with current changes
+claude-image-cleaner --recover-from-backup
+
+# Use specific backup file
+claude-image-cleaner --recover-from-backup ~/.claude.json.backup.2025-07-31
+
+# Show all options
+claude-image-cleaner --help
+```
+
+### Manual Installation
 
 **macOS/Linux:**
 ```bash
@@ -50,32 +85,76 @@ Invoke-WebRequest -Uri "https://raw.githubusercontent.com/time4Wiley/claude-code
 python claude-code-history-image-cleaner.py
 ```
 
-**Windows (Command Prompt):**
-```cmd
-# Download the script
-curl -O https://raw.githubusercontent.com/time4Wiley/claude-code-history-image-cleaner/master/claude-code-history-image-cleaner.py
-
-# Run it
-python claude-code-history-image-cleaner.py
-```
-
 ### Example Output
 
+**Regular Cleaning:**
 ```
-Found Claude config: C:\Users\YourName\.claude.json
-Images will be saved to: C:\Users\YourName\.claude\history_images
+Found Claude config: /Users/you/.claude.json
+Images will be saved to: /Users/you/.claude/history_images
 Original file size: 24.9 MB
-Backup saved to: C:\Users\YourName\.claude.json.backup.20250731_120432
+Backup saved to: /Users/you/.claude.json.backup.20250801_120432
 
 Items cleaned: 56
-Images extracted: 12
+Images extracted: 56
 Total size removed: 23.5 MB
 Cleaned .claude.json saved!
-✅ 12 images preserved and extracted to files
-📁 Images location: C:\Users\YourName\.claude\history_images
+✅ 56 images preserved and extracted to files
+📁 Images location: /Users/you/.claude/history_images
 New file size: 1.3 MB
 Size reduction: 94.8%
 ```
+
+**Data Recovery:**
+```
+🔍 Auto-detected backup file: .claude.json.backup.2025-07-31 (24.8 MB)
+🚀 Starting data recovery process...
+   Backup file: /Users/you/.claude.json.backup.2025-07-31 (24.8 MB)
+   Current file: /Users/you/.claude.json (1.3 MB)
+📖 Loading data files...
+🔄 Creating destructive version of backup data...
+   Destructively removed 56 images
+🔍 Analyzing differences between current and backup data...
+   Found new project: /Users/you/Projects/new-project
+   Found 6 new history items in /Users/you/temp/existing-project
+🖼️ Processing backup with image preservation...
+✓ Extracted 56 images from backup
+🔀 Merging backup images with current changes...
+   Added new project: /Users/you/Projects/new-project
+   Added 6 new history items to /Users/you/temp/existing-project
+💾 Current file backed up to: /Users/you/.claude.json.recovery-backup.20250801_154825
+
+✅ Data recovery completed successfully!
+   Images recovered: 56
+   New projects added: 1
+   Projects with new history: 1
+   Final file size: 1.3 MB
+   Images location: /Users/you/.claude/history_images
+```
+
+## Data Recovery System
+
+The tool includes a sophisticated data recovery system to solve the data loss issue where images were replaced with `[IMAGE_REMOVED]` placeholders but no image files were extracted.
+
+### How Data Recovery Works
+
+1. **Backup Analysis**: Processes your large backup file (containing original images)
+2. **Delta Detection**: Compares current config with what the backup would look like after destructive cleaning
+3. **Change Identification**: Finds new projects and conversations added since the backup
+4. **Image Extraction**: Recovers all images from backup using the lossless preservation system
+5. **Smart Merging**: Combines extracted images with new conversations to create a complete, up-to-date config
+
+### Use Cases
+
+- **Lost Images**: Your current config has `[IMAGE_REMOVED]` but you have a backup with original images
+- **Partial Recovery**: You want to recover old images while keeping new conversations
+- **Migration**: Moving from destructive to preservation-based image handling
+
+### Safety Features
+
+- Creates recovery backup before making changes
+- Auto-detects suitable backup files
+- Preserves all conversation data and new projects
+- Never overwrites without backing up first
 
 ## How It Works
 
@@ -89,8 +168,9 @@ Size reduction: 94.8%
 4. **Scans** all project history for `pastedContents`
 5. **Identifies** base64 encoded images using:
    - Data URI detection (`data:image/...`) - **extractable as files**
-   - Large base64 string detection (>50KB strings with base64 characters) - **removed only**
-6. **Extracts** images with data URI scheme to organized directories:
+   - Raw base64 detection using magic number identification (PNG, JPEG, GIF, WebP, BMP, SVG) - **extractable as files**
+   - Large base64 string detection (>50KB strings with base64 characters) - **removed if unidentifiable**
+6. **Extracts** images (both data URI and raw base64) to organized directories:
    - `~/.claude/history_images/project_name_hash/timestamp/image_001.png`
 7. **Replaces** image data with file path references: `[IMAGE_FILE:/path/to/image.png]`
 8. **Saves** the cleaned file with preserved images
@@ -180,25 +260,32 @@ copy "%USERPROFILE%\.claude.json.backup.20250731_120432" "%USERPROFILE%\.claude.
 - **Claude Code startup time**: 6 seconds → 2-3 seconds (50%+ faster)
 - **CLI responsiveness**: Significantly improved
 - **Memory usage**: Substantially reduced
-- **Images preserved**: All design images safely extracted to organized files
+- **Images recovered**: All 56 images (including pasted screenshots) successfully extracted and organized
+- **Raw base64 detection**: 100% success rate on macOS pasted images using magic number identification
 
-The performance improvement is immediately noticeable, especially on systems with large history files containing many pasted images.
+The performance improvement is immediately noticeable, especially on systems with large history files containing many pasted images. The enhanced raw base64 detection ensures that even clipboard-pasted images (which don't use data URI format) are properly recovered and preserved.
 
-## Testing & Development
+## Global CLI Installation
 
-The script includes built-in testing capabilities:
+The tool can be installed globally for convenient access from anywhere on your system:
 
-**Generate test data:**
+**Installation:**
 ```bash
-python3 claude-code-history-image-cleaner.py --generate-test-data [test_file.json]
+# Download installation script
+curl -O https://raw.githubusercontent.com/time4Wiley/claude-code-history-image-cleaner/master/install.sh
+chmod +x install.sh
+
+# Install globally (creates symlink in /usr/local/bin or ~/.local/bin)
+./install.sh
 ```
 
-**Test with custom file:**
+**Uninstallation:**
 ```bash
-python3 claude-code-history-image-cleaner.py --test-file path/to/test_file.json
+# Remove the global command
+rm /usr/local/bin/claude-image-cleaner  # or ~/.local/bin/claude-image-cleaner
 ```
 
-This allows you to verify functionality without affecting your real Claude config file.
+The installer automatically detects the best installation location and provides helpful guidance for PATH configuration if needed.
 
 ## Contributing
 
